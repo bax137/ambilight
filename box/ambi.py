@@ -1,13 +1,19 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 #import chardet
+from distutils import text_file
 import os,sys,time,logging
 import spidev as SPI
 sys.path.append("/home/pi/LCD_Module_code/RaspberryPi/python")
 from lib import LCD_1inch28
 from PIL import Image,ImageDraw,ImageFont
 import RPi.GPIO as GPIO
-rotation=90
+import requests
+import json
+from datetime import datetime
+
+rotation=-6
+hyperhdr_url = "http://192.168.1.134:8090/json-rpc/"
 
 ######################
 #        pins        #
@@ -25,26 +31,18 @@ but_IN=14
 but_OUT1=23
 but_OUT2=24
 
-def dispBackgroung(disp,image):
-    # Clear display.
-    disp.clear()
-    # Create blank image for drawing.
+def dispBackgroung(image):
     draw = ImageDraw.Draw(image)
     draw.arc((1,1,239,239),0, 360, fill =(0,0,255))
     draw.arc((2,2,238,238),0, 360, fill =(0,0,255))
     draw.arc((3,3,237,237),0, 360, fill =(0,0,255))
     return draw
 
-def dispText(draw,text,position,color,font):
-    return draw.text(position, text, fill = color,font=font)
-
-def dispFS(disp,text1, text2):
+def dispText(disp,text1, text2, color1 = "PURPLE", color2 = "YELLOW"):
     image = Image.new("RGB", (disp.width, disp.height), "BLACK")
-    draw = dispBackgroung(disp,image)
-
-    draw = dispText(draw,text1,(74, 150),"YELLOW",Font1)
-    draw = dispText(draw,text2,(40, 50),(128,255,128),Font2)
-
+    draw = dispBackgroung(image)
+    draw.text((51, 45), text1, fill = color1,font=Font3)
+    draw.text((50, 125), text2, fill = color2,font=Font4)
     disp.ShowImage(image.rotate(rotation))
 
 GPIO.setwarnings(False)
@@ -78,16 +76,19 @@ flag_pressed = 0
 logging.basicConfig(level=logging.DEBUG)
 Font1 = ImageFont.truetype("/home/pi/Font/Font01.ttf",25)
 Font2 = ImageFont.truetype("/home/pi/Font/Font01.ttf",35)
-Font3 = ImageFont.truetype("/home/pi/Font/Font02.ttf",32)
+Font3 = ImageFont.truetype("/home/pi/Font/Font02.ttf",65)
+Font4 = ImageFont.truetype("/home/pi/Font/Font02.ttf",35)
+
 
 # display with hardware SPI:
 ''' Warning!!!Don't  creation of multiple displayer objects!!! '''
 disp = LCD_1inch28.LCD_1inch28(spi=SPI.SpiDev(disp_bus, disp_device),spi_freq=10000000,rst=disp_RST,dc=disp_DC,bl=disp_BL)
 # Initialize library.
 disp.Init()
+disp.clear()
 
 # initialize display
-dispFS(disp,'INITIALISATION', '......')
+dispText(disp,"..:..","Initialisaiton")
 
 while True:
     button_current = GPIO.input(but_IN)
@@ -99,7 +100,8 @@ while True:
         brojac = 0
 
     if (button_current and (not button_previous)):
-        dispFS(disp,'SHUTDOWN', '......')
+        dispText(disp,"Shutdown","...........")
+
 
         print("Shutdown")
         os.system("shutdown -h now")
@@ -107,15 +109,41 @@ while True:
         GPIO.output(but_OUT2, False)
 
     if ((not flag_pressed) and  brojac >= 100):
-        dispFS(disp,'RESET', '......')
+        dispText(disp,"Reboot","...........")
 
-        print("Reset")
-        os.system("shutdown -r now")
+        print("Reboot")
+        os.system("Reboot -r now")
         GPIO.output(but_OUT1, False)
         break
 
     button_previous = button_current
-    time.sleep(0.03)
+
+    #HYPERHDR
+    payload = json.dumps({
+        "command": "serverinfo",
+        "tan": 0
+    })
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    text = "HyperHDR OFF"
+    color = "RED"
+    try:
+        response = requests.request("POST", hyperhdr_url, headers=headers, data=payload)
+        json_resp= json.loads(response.text)
+        if (json_resp["success"] == True):
+            text="HyperHDR ON"
+            color="GREEN"
+    except:
+        text = "HyperHDR OFF"
+        color = "RED"
+    now = datetime.now()
+    current_time = now.strftime("%H:%M")
+    dispText(disp,current_time,text,color2=color)
+    
+    #time.sleep(0.03)
+    time.sleep(1)
 
 disp.module_exit()
 fan_pwm.stop()
