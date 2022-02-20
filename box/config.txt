@@ -1,0 +1,6 @@
+[all]
+dtparam=spi=on
+dtoverlay=spi1-1cs
+gpio=17=op,dl
+#pwm fan
+dtoverlay=pwm,pin=13,func=4

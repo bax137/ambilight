@@ -1,0 +1,14 @@
+[Unit]
+Description=Ambilight boxfor user %i
+Before=hyperhdr@.service
+
+[Service]
+ExecStart=/bin/python3 /home/pi/ambi.py
+User=%i
+TimeoutStopSec=5
+KillMode=mixed
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
