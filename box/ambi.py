@@ -273,8 +273,12 @@ async def command(websocket):
     async for message in websocket:
         if message == "stop":
             stopHyperHDR()
-        if message == "start":
+            await websocket.send("HyperHDR Stopped")
+        elif message == "start":
             startHyperHDR()
+            await websocket.send("HyperHDR Started")
+        else:
+            await websocket.send("unkown command")
 
 async def main():
     async with websockets.serve(command, "localhost",  8765):
