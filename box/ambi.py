@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 #import chardet
+from multiprocessing.connection import wait
 import os,sys,time,logging,threading,requests,json,websocket,websockets,asyncio
 import _thread as thread
 import spidev as SPI
@@ -49,29 +50,38 @@ def dispBackgroung(image):
     draw.arc((3,3,237,237),0, 360, fill =(0,0,255))
     return draw
 
-def dispText(disp,textH, textM, text, colorTime = "PURPLE", colorText = "YELLOW"):
-    image = Image.new("RGB", (disp.width, disp.height), "BLACK")
-    draw = dispBackgroung(image)
-    draw.text((51, 45), textH, fill = colorTime,font=Font3)
-    draw.text((121, 45), textM, fill = colorTime,font=Font3)
-    draw.text((50, 125), text, fill = colorText,font=Font4)
-    position=[(80, 170),(105, 170),(130, 170),(155, 170)]
-    if currentParams.hyperhdr == 1:
-        for i in range(0,4):
-            color = "RED"
-            if currentParams.texti[i] == 1:
-                color = "GREEN"
-            elif currentParams.texti[i] == -1:
-                color = "ORANGE"
-            draw.text(position[i], str(i), fill = color,font=Font4)
-    
-    disp.ShowImage(image.rotate(rotation))
-
-class CurrentParams():
-    def __init__(self):
-        super(CurrentParams, self).__init__()
+class Screen():
+    def __init__(self,disp):
+        super(Screen, self).__init__()
+        self.disp = disp
+        self.textH = ""
+        self.textM = ""
+        self.text = ""
+        self.time_color = "PURPLE"
+        self.text_color = "YELLOW"
         self.texti = [-1,-1,-1,-1]
-        self.hyperhdr = 1
+        self.in_progress = False 
+
+    def refresh(self):    
+        image = Image.new("RGB", (self.disp.width, self.disp.height), "BLACK")
+        draw = dispBackgroung(image)
+        draw.text((48, 45), self.textH, fill = self.time_color,font=Font3)
+        draw.text((133, 45), self.textM, fill = self.time_color,font=Font3)
+        draw.text((50, 125), self.text, fill = self.text_color,font=Font4)
+        position=[(80, 170),(105, 170),(130, 170),(155, 170)]
+        if hyperHDR.desired_status == 1:
+            for i in range(0,4):
+                color = "RED"
+                if self.texti[i] == 1:
+                    color = "GREEN"
+                elif self.texti[i] == -1:
+                    color = "ORANGE"
+                draw.text(position[i], str(i), fill = color,font=Font4)
+        while self.in_progress == True:
+            pass
+        self.in_progress = True 
+        self.disp.ShowImage(image.rotate(rotation))
+        self.in_progress = False
 
 class Button(threading.Thread):
     def __init__(self):
@@ -92,7 +102,7 @@ class Button(threading.Thread):
                 brojac = 0
 
             if (button_current and (not button_previous)):
-                if currentParams.hyperhdr == 1:
+                if hyperHDR.desired_status == 1:
                     stopHyperHDR()
                 else:
                     startHyperHDR()
@@ -100,12 +110,13 @@ class Button(threading.Thread):
             if ((not flag_pressed) and  brojac >= 100):
                 screen.text_color = "YELLOW"
                 screen.text = "shutdown..."
+                screen.refresh()
                 GPIO.output(but_OUT1, False)
                 GPIO.output(but_OUT2, False)
                 disp.module_exit()
                 #fan_pwm.stop()
                 GPIO.cleanup()
-                os.system("shutdown -h now")
+                os.system("sudo shutdown -h now")
                 break
 
             button_previous = button_current
@@ -113,19 +124,17 @@ class Button(threading.Thread):
             time.sleep(0.03)
 
 def stopHyperHDR():
-    currentParams.hyperhdr = 0
+    hyperHDR.desired_status = 0
     os.system("systemctl stop hyperhdr@root")
 
 def startHyperHDR():
-    currentParams.hyperhdr = 1
+    hyperHDR.desired_status = 1
     os.system("systemctl start hyperhdr@root")
     hyperHDRInit()
 
-class Screen(threading.Thread):
+class Clock(threading.Thread):
     def __init__(self):
-        super(Screen, self).__init__()
-        self.text = ""
-        self.text_color = "YELLOW"
+        super(Clock, self).__init__()
 
     def run(self):
         step_sec=0
@@ -139,8 +148,9 @@ class Screen(threading.Thread):
             else:
                 step_sec=1
                 H = now.strftime("%H")
-            dispText(disp,H,M,self.text,colorText=self.text_color)
-            
+            screen.textH = H
+            screen.textM = M
+            screen.refresh()            
             time.sleep(0.5)
 
 class HyperHDR(threading.Thread):
@@ -148,12 +158,14 @@ class HyperHDR(threading.Thread):
         super(HyperHDR, self).__init__()
         self.init_status = 0
         self.status = 0
+        self.desired_status = 0
+        self.screen_started = 0
         
     def run(self):
         step_sec=0
         while True:
             #HYPERHDR
-            if currentParams.hyperhdr == 1:
+            if self.desired_status == 1:
                 payload = json.dumps({
                     "command": "serverinfo",
                 })
@@ -172,20 +184,21 @@ class HyperHDR(threading.Thread):
                         self.status = 1
                         self.init_status = 1
                     else:
-                        currentParams.texti = [-1,-1,-1,-1]
+                        screen.texti = [-1,-1,-1,-1]
                         text_color="ORANGE"
                         text="HyperHDR..."
                 except:
                     self.status = 0
-                    currentParams.texti = [-1,-1,-1,-1]
+                    screen.texti = [-1,-1,-1,-1]
                 
                 if self.init_status == 1:
                     screen.text_color=text_color
                     screen.text=text
-            else:
+                    screen.refresh()
+            elif self.screen_started:
                 screen.text_color="BLUE"
                 screen.text="sleep..."
-            
+                screen.refresh()
             time.sleep(1)
 
 def on_error(ws, error):
@@ -208,17 +221,21 @@ def on_message(ws, message):
         for i in range(0,4):
             if 'instance' in json_message["data"][i]:
                 if json_message["data"][i]["running"] == True:
-                    currentParams.texti[i] = 1
+                    screen.texti[i] = 1
                 else:
-                    currentParams.texti[i] = 0
+                    screen.texti[i] = 0
+        screen.refresh()
+
     if 'info' in json_message:
         if 'instance' in json_message["info"]:
             for i in range(0,4):
                 if 'instance' in json_message["info"]["instance"][i]:
                     if json_message["info"]["instance"][i]["running"] == True:
-                        currentParams.texti[i] = 1
+                        screen.texti[i] = 1
                     else:
-                        currentParams.texti[i] = 0
+                        screen.texti[i] = 0
+            screen.refresh()
+
 def hyperHDRInit():
     i = 0
     text = ""
@@ -231,6 +248,7 @@ def hyperHDRInit():
             i = 0
         screen.text_color = "YELLOW"
         screen.text = text
+        screen.refresh()
 
         time.sleep(0.5)
 
@@ -297,7 +315,9 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.WARNING)
 
-    currentParams = CurrentParams()
+
+    hyperHDR = HyperHDR()
+    hyperHDR.start()
 
     # display with hardware SPI:
     ''' Warning!!!Don't  creation of multiple displayer objects!!! '''
@@ -306,17 +326,18 @@ if __name__ == "__main__":
     disp.Init()
     disp.clear()
 
-    screen = Screen()
-    screen.start()
-    
-    # initialize display
+    screen = Screen(disp)
+    clock = Clock()
+    clock.start()
+
     screen.text="Initialisaiton"
+    screen.refresh()
 
     button = Button()
     button.start()
 
-    hyperHDR = HyperHDR()
-    hyperHDR.start()
+    hyperHDR.desired_status = 1
+    hyperHDR.screen_started = 1
 
     webServer = WebServer()
     webServer.start()
