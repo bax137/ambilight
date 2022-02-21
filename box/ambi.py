@@ -304,30 +304,68 @@ def piShutdown():
 #            asyncio.run(main())
 
 class WebServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path.endswith('/hyperhdr/stop'):
-            stopHyperHDR()
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'HyperHDR Stopped')
-        elif self.path.endswith('/hyperhdr/start'):
-            startHyperHDR()
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'HyperHDR Started')
-        elif self.path.endswith('/pi/shutdown'):
-            piShutdown()
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'PI shutdowned')
+    def do_POST(self):
+        content_len = int(self.headers.get('Content-Length'))
+        post_body = self.rfile.read(content_len)
+        response = 0
+        message = ''
+        if self.path.endswith('/hyperhdr'):
+            post_body_json = json.loads(post_body)
+            if "command" in post_body_json:
+                if post_body_json["command"] == "stop":
+                    stopHyperHDR()
+                    response = 200
+                    message = message = '{"result":"HyperHDR Stopped"}'
+                elif post_body_json["command"] == "start":
+                    startHyperHDR()
+                    response = 200
+                    message = '{"result":"HyperHDR Started"}'
+                else:
+                    response = 400
+                    message = '{"error":"Unknown command"}'
+            else:
+                response = 400
+                message = 'Unknonw field'
+        elif self.path.endswith('/pi/'):
+            post_body_json = json.loads(post_body)
+            if "command" in post_body_json:
+                if post_body_json["command"] == "shutdown":
+                    piShutdown()
+                    response = 200
+                    message = '{"result":"PI shutdowned"}'
+                else:
+                    response = 400
+                    message = '{"error":"Unknown command"}'
+            else:
+                response = 400
+                message = '{"error":"Unknown field"}'
         else:
-            self.send_response(404)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'Unknown command') 
+            response = 404
+            message = '{"error":"command not found"}'
+
+        self.send_response(response)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(bytes(message))
+
+    def do_GET(self):
+        response = 0
+        message = ""
+        if self.path.endswith('/hyperhdr'):
+            response = 200
+            if hyperHDR.status == 1:
+                message = '{"is_active":true}'
+            else: 
+                message = '{"is_active":false}'
+                response = 200
+        else:
+            message = 404
+            message = '{"error":"command not found"}'
+        
+        self.send_response(response)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(bytes(message))
 
 class WebServerThread(threading.Thread):
     def __init__(self):
