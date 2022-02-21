@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 #import chardet
-from multiprocessing.connection import wait
-import os,sys,time,logging,threading,requests,json,websocket,websockets,asyncio
+#from multiprocessing.connection import wait
+import os,sys,time,logging,threading,requests,json,websocket #,websockets,asyncio
 import _thread as thread
 import spidev as SPI
 sys.path.append("/home/pi/LCD_Module_code/RaspberryPi/python")
@@ -11,6 +11,9 @@ from PIL import Image,ImageDraw,ImageFont
 import RPi.GPIO as GPIO
 from datetime import datetime
 
+
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 ######################
 #       config       #
 ######################
@@ -18,6 +21,7 @@ rotation=-6
 hyperhdr_ip = "localhost"
 hyperhdr_port = 8090
 hyperhdr_url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
+webserver_port = 8888
 
 fan_speed=90
 
@@ -269,27 +273,56 @@ def hyperHDRSubscribe():
         "tan":1
     }""")
 
-async def command(websocket):
-    async for message in websocket:
-        if message == "stop":
+#async def command(websocket):
+#    async for message in websocket:
+#        if message == "stop":
+#            stopHyperHDR()
+#            await websocket.send("HyperHDR Stopped")
+#        elif message == "start":
+#            startHyperHDR()
+#            await websocket.send("HyperHDR Started")
+#        else:
+#            await websocket.send("unkown command")
+
+#async def main():
+#    async with websockets.serve(command, "localhost",  8765):
+#        await asyncio.Future()
+
+#class WebServer(threading.Thread):
+#    def __init__(self):
+#        super(WebServer, self).__init__()
+#    
+#    def run(self):
+#            asyncio.run(main())
+
+class WebServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.endswith('/stop'):
             stopHyperHDR()
-            await websocket.send("HyperHDR Stopped")
-        elif message == "start":
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'HyperHDR Stopped')
+        elif self.path.endswith('/start'):
             startHyperHDR()
-            await websocket.send("HyperHDR Started")
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'HyperHDR Started')
         else:
-            await websocket.send("unkown command")
+            self.send_response(404)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Unknown command') 
 
-async def main():
-    async with websockets.serve(command, "localhost",  8765):
-        await asyncio.Future()
-
-class WebServer(threading.Thread):
+class WebServerThread(threading.Thread):
     def __init__(self):
-        super(WebServer, self).__init__()
+        super(WebServerThread, self).__init__()
     
     def run(self):
-            asyncio.run(main())
+        #asyncio.run(main())
+        webServer = HTTPServer(("localhost", webserver_port), WebServer)
+        webServer.serve_forever()
 
 if __name__ == "__main__":
 
@@ -343,8 +376,8 @@ if __name__ == "__main__":
     hyperHDR.desired_status = 1
     hyperHDR.screen_started = 1
 
-    webServer = WebServer()
-    webServer.start()
+    webServerThread = WebServerThread()
+    webServerThread.start()
 
     hyperHDRInit()
 
