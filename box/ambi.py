@@ -110,39 +110,23 @@ class Button(threading.Thread):
                     stopHyperHDR()
                 else:
                     startHyperHDR()
-
+                break
             if ((not flag_pressed) and  brojac >= 100):
-                screen.text_color = "YELLOW"
-                screen.text = "shutdown..."
-                screen.refresh()
-                GPIO.output(but_OUT1, False)
-                GPIO.output(but_OUT2, False)
-                disp.module_exit()
-                #fan_pwm.stop()
-                GPIO.cleanup()
-                os.system("sudo shutdown -h now")
+                piShutdown()
                 break
 
             button_previous = button_current
 
             time.sleep(0.03)
 
-def stopHyperHDR():
-    hyperHDR.desired_status = 0
-    os.system("systemctl stop hyperhdr@root")
-
-def startHyperHDR():
-    hyperHDR.desired_status = 1
-    os.system("systemctl start hyperhdr@root")
-    hyperHDRInit()
-
 class Clock(threading.Thread):
     def __init__(self):
         super(Clock, self).__init__()
+        self.stop = False
 
     def run(self):
         step_sec=0
-        while True:
+        while self.stop == False:
             now = datetime.now()
             M=now.strftime("%M")
             H=""
@@ -166,7 +150,6 @@ class HyperHDR(threading.Thread):
         self.screen_started = 0
         
     def run(self):
-        step_sec=0
         while True:
             #HYPERHDR
             if self.desired_status == 1:
@@ -273,6 +256,31 @@ def hyperHDRSubscribe():
         "tan":1
     }""")
 
+def stopHyperHDR():
+    hyperHDR.desired_status = 0
+    os.system("systemctl stop hyperhdr@root")
+
+def startHyperHDR():
+    hyperHDR.desired_status = 1
+    os.system("systemctl start hyperhdr@root")
+    hyperHDRInit()
+
+def piShutdown():
+    clock.stop = True
+    screen.textH = ""
+    screen.textM = ""
+    screen.texti = [-1,-1,-1,-1]
+    screen.text_color = "YELLOW"
+    screen.text = "shutdown..."
+    screen.refresh()
+    GPIO.output(but_OUT1, False)
+    GPIO.output(but_OUT2, False)
+    disp.module_exit()
+    #fan_pwm.stop()
+    GPIO.cleanup()
+    os.system("sudo shutdown -h now")
+
+
 #async def command(websocket):
 #    async for message in websocket:
 #        if message == "stop":
@@ -297,18 +305,24 @@ def hyperHDRSubscribe():
 
 class WebServer(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path.endswith('/stop'):
+        if self.path.endswith('/hyperhdr/stop'):
             stopHyperHDR()
             self.send_response(200)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
             self.wfile.write(b'HyperHDR Stopped')
-        elif self.path.endswith('/start'):
+        elif self.path.endswith('/hyperhdr/start'):
             startHyperHDR()
             self.send_response(200)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
             self.wfile.write(b'HyperHDR Started')
+        elif self.path.endswith('/pi/shutdown'):
+            piShutdown()
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'PI shutdowned')
         else:
             self.send_response(404)
             self.send_header('Content-type', 'text/plain')
