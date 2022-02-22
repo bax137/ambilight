@@ -21,7 +21,10 @@ rotation=-6
 hyperhdr_ip = "localhost"
 hyperhdr_port = 8090
 hyperhdr_url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
+webserver_ip = "192.168.1.134"
 webserver_port = 8888
+hue_ip = "192.168.1.100"
+hue_auth_token = "UyUyQ0wu3TRdWKOC4SDK7VCum3O8LEOMpiQahvGF"
 
 fan_speed=90
 
@@ -67,6 +70,9 @@ class Screen():
         self.in_progress = False 
 
     def refresh(self):    
+        while self.in_progress == True:
+            pass
+        self.in_progress = True 
         image = Image.new("RGB", (self.disp.width, self.disp.height), "BLACK")
         draw = dispBackgroung(image)
         draw.text((48, 45), self.textH, fill = self.time_color,font=Font3)
@@ -81,9 +87,6 @@ class Screen():
                 elif self.texti[i] == -1:
                     color = "ORANGE"
                 draw.text(position[i], str(i), fill = color,font=Font4)
-        while self.in_progress == True:
-            pass
-        self.in_progress = True 
         self.disp.ShowImage(image.rotate(rotation))
         self.in_progress = False
 
@@ -184,7 +187,7 @@ class HyperHDR(threading.Thread):
                     screen.refresh()
             elif self.screen_started:
                 screen.text_color="BLUE"
-                screen.text="sleep..."
+                screen.text="...sleep..."
                 screen.refresh()
             time.sleep(1)
 
@@ -238,6 +241,21 @@ def hyperHDRInit():
         screen.refresh()
 
         time.sleep(0.5)
+    
+    #disable streaming for hue
+    url = "http://"+hue_ip+"/api/"+hue_auth_token+"/groups/6"
+    payload = json.dumps({
+        "stream": {
+        "active": False
+        }
+    })
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    while hyperHDR.status == 0:
+        pass
+    requests.request("GET", url, headers=headers, data=payload)
 
     #activate sound effect on leds box
     url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
@@ -247,9 +265,11 @@ def hyperHDRInit():
 
     payload = ""
     headers = {}
-    response = requests.request("GET", url, headers=headers, data=payload)
+    requests.request("GET", url, headers=headers, data=payload)
 
 def hyperHDRSubscribe():
+    while hyperHDR.status == 0:
+            pass
     ws.send("""{
         "command":"serverinfo",
         "subscribe":["instance-update"],
@@ -257,13 +277,17 @@ def hyperHDRSubscribe():
     }""")
 
 def stopHyperHDR():
+    subscriptionThread.active = False
     hyperHDR.desired_status = 0
     os.system("systemctl stop hyperhdr@root")
+    hyperHDR.status = 0
 
 def startHyperHDR():
     hyperHDR.desired_status = 1
     os.system("systemctl start hyperhdr@root")
     hyperHDRInit()
+    subscriptionThread.active = True
+    #hyperHDRSubscribe()
 
 def piShutdown():
     clock.stop = True
@@ -326,7 +350,7 @@ class WebServer(BaseHTTPRequestHandler):
             else:
                 response = 400
                 message = 'Unknonw field'
-        elif self.path.endswith('/pi/'):
+        elif self.path.endswith('/pi'):
             post_body_json = json.loads(post_body)
             if "command" in post_body_json:
                 if post_body_json["command"] == "shutdown":
@@ -346,7 +370,7 @@ class WebServer(BaseHTTPRequestHandler):
         self.send_response(response)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
-        self.wfile.write(bytes(message))
+        self.wfile.write(bytes(message,"utf8"))
 
     def do_GET(self):
         response = 0
@@ -358,6 +382,9 @@ class WebServer(BaseHTTPRequestHandler):
             else: 
                 message = '{"is_active":false}'
                 response = 200
+        elif self.path.endswith('/status'):
+            message = '{"result":"ok"}'
+            response = 200
         else:
             message = 404
             message = '{"error":"command not found"}'
@@ -365,7 +392,7 @@ class WebServer(BaseHTTPRequestHandler):
         self.send_response(response)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
-        self.wfile.write(bytes(message))
+        self.wfile.write(bytes(message,"utf8"))
 
 class WebServerThread(threading.Thread):
     def __init__(self):
@@ -373,8 +400,18 @@ class WebServerThread(threading.Thread):
     
     def run(self):
         #asyncio.run(main())
-        webServer = HTTPServer(("localhost", webserver_port), WebServer)
+        webServer = HTTPServer((webserver_ip, webserver_port), WebServer)
         webServer.serve_forever()
+
+class SubscriptionThread(threading.Thread):
+    def __init__(self):
+        super(SubscriptionThread, self).__init__()
+        self.active = True
+
+    def run(self):
+        while True:
+            if self.active == True:
+                ws.run_forever()
 
 if __name__ == "__main__":
 
@@ -431,14 +468,13 @@ if __name__ == "__main__":
     webServerThread = WebServerThread()
     webServerThread.start()
 
+    ws = websocket.WebSocketApp("ws://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc",
+                        on_open=on_open,
+                        on_message=on_message,
+                        on_error=on_error,
+                        on_close=on_close)
     hyperHDRInit()
 
-   #subscription to hyperHDR updates
-    ws = websocket.WebSocketApp("ws://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc",
-                            on_open=on_open,
-                            on_message=on_message,
-                            on_error=on_error,
-                            on_close=on_close)
-
-    while True:
-        ws.run_forever()
+    #subscription to hyperHDR updates
+    subscriptionThread = SubscriptionThread()
+    subscriptionThread.start()
