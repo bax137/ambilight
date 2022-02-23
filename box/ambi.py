@@ -378,9 +378,9 @@ class WebServer(BaseHTTPRequestHandler):
         if self.path.endswith('/hyperhdr'):
             response = 200
             if hyperHDR.status == 1:
-                message = '{"is_active":true}'
+                message = '{"is_active":"true"}'
             else: 
-                message = '{"is_active":false}'
+                message = '{"is_active":"false"}'
                 response = 200
         elif self.path.endswith('/status'):
             message = '{"result":"ok"}'
