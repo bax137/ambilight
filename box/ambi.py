@@ -79,27 +79,47 @@ class Screen():
         draw.text((133, 45), self.textM, fill = self.time_color,font=Font3)
         draw.text((50, 125), self.text, fill = self.text_color,font=Font4)
         position=[(80, 170),(105, 170),(130, 170),(155, 170)]
+        instance_text = ""
         if hyperHDR.desired_status == 1:
             for i in range(0,4):
+                instance_text = str(i)
                 color = "RED"
                 if self.texti[i] == 1:
                     color = "GREEN"
                 elif self.texti[i] == -1:
+                    instance_text = ""
                     color = "ORANGE"
-                draw.text(position[i], str(i), fill = color,font=Font4)
+                draw.text(position[i], instance_text, fill = color,font=Font4)
         self.disp.ShowImage(image.rotate(rotation))
         self.in_progress = False
 
 class Button(threading.Thread):
+    SLEEP_ON_DURATION = 0.5
+    SLEEP_OFF_DURATION = 1
+
     def __init__(self):
         super(Button, self).__init__()
+        self.sleep_led_status = False
 
     def run(self):
         button_previous = 1
         button_current = 1
         brojac = 0
         flag_pressed = 0
+        now1 = datetime.now()
         while True:
+            now2 = datetime.now()
+            if hyperHDR.desired_statusstatus == 0:
+                if self.sleep_led_status == False:
+                    if (now2-now1).total_seconds() > self.SLEEP_OFF_DURATION:
+                        GPIO.output(but_OUT1, True)
+                        self.sleep_led_status = True
+                        now1 = datetime.now()
+                elif (now2-now1).total_seconds() > self.SLEEP_OON_DURATION:
+                    GPIO.output(but_OUT1, False)
+                    self.sleep_led_status = False
+                    now1 = datetime.now()
+
             button_current = GPIO.input(but_IN)
             flag_pressed = button_previous + button_current
 
