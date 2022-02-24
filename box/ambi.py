@@ -95,7 +95,7 @@ class Screen():
 
 class Button(threading.Thread):
     SLEEP_ON_DURATION = 0.5
-    SLEEP_OFF_DURATION = 1
+    SLEEP_OFF_DURATION = 5
 
     def __init__(self):
         super(Button, self).__init__()
@@ -109,16 +109,18 @@ class Button(threading.Thread):
         now1 = datetime.now()
         while True:
             now2 = datetime.now()
-            if hyperHDR.desired_statusstatus == 0:
+            if hyperHDR.desired_status == 0:
                 if self.sleep_led_status == False:
                     if (now2-now1).total_seconds() > self.SLEEP_OFF_DURATION:
                         GPIO.output(but_OUT1, True)
                         self.sleep_led_status = True
                         now1 = datetime.now()
-                elif (now2-now1).total_seconds() > self.SLEEP_OON_DURATION:
+                elif (now2-now1).total_seconds() > self.SLEEP_ON_DURATION:
                     GPIO.output(but_OUT1, False)
                     self.sleep_led_status = False
                     now1 = datetime.now()
+            elif self.sleep_led_status == False:
+                GPIO.output(but_OUT1, True)
 
             button_current = GPIO.input(but_IN)
             flag_pressed = button_previous + button_current
@@ -324,29 +326,6 @@ def piShutdown():
     GPIO.cleanup()
     os.system("sudo shutdown -h now")
 
-
-#async def command(websocket):
-#    async for message in websocket:
-#        if message == "stop":
-#            stopHyperHDR()
-#            await websocket.send("HyperHDR Stopped")
-#        elif message == "start":
-#            startHyperHDR()
-#            await websocket.send("HyperHDR Started")
-#        else:
-#            await websocket.send("unkown command")
-
-#async def main():
-#    async with websockets.serve(command, "localhost",  8765):
-#        await asyncio.Future()
-
-#class WebServer(threading.Thread):
-#    def __init__(self):
-#        super(WebServer, self).__init__()
-#    
-#    def run(self):
-#            asyncio.run(main())
-
 class WebServer(BaseHTTPRequestHandler):
     def do_POST(self):
         content_len = int(self.headers.get('Content-Length'))
@@ -430,7 +409,7 @@ class SubscriptionThread(threading.Thread):
 
     def run(self):
         while True:
-            if self.active == True:
+            if self.active == True and hyperHDR.status == 1:
                 ws.run_forever()
 
 if __name__ == "__main__":
@@ -493,8 +472,9 @@ if __name__ == "__main__":
                         on_message=on_message,
                         on_error=on_error,
                         on_close=on_close)
-    hyperHDRInit()
-
+    
     #subscription to hyperHDR updates
     subscriptionThread = SubscriptionThread()
     subscriptionThread.start()
+
+    startHyperHDR()
