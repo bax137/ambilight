@@ -406,7 +406,7 @@ class WebServer(BaseHTTPRequestHandler):
             message = '{"result":"ok"}'
             response = 200
         else:
-            message = 404
+            response = 404
             message = '{"error":"command not found"}'
         
         self.send_response(response)
