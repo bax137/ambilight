@@ -25,7 +25,10 @@ webserver_ip = "192.168.1.134"
 webserver_port = 8888
 hue_ip = "192.168.1.100"
 hue_auth_token = "UyUyQ0wu3TRdWKOC4SDK7VCum3O8LEOMpiQahvGF"
-
+BACK_ON_COLOR = [(94,0,186),(45,0,89)]
+BACK_SLEEP_COLOR = [(61,0,121),(28,0,55)]
+TIME_ON_COLOR = (0,135,166)
+TIME_SLEEP_COLOR = "PURPLE"
 fan_speed=90
 
 ######################
@@ -50,12 +53,40 @@ Font3 = ImageFont.truetype("/home/pi/Font/Font02.ttf",65)
 Font4 = ImageFont.truetype("/home/pi/Font/Font02.ttf",35)
 
 
-def dispBackgroung(image):
+def dispBackgroung(image,a,b):
     draw = ImageDraw.Draw(image)
-    draw.arc((1,1,239,239),0, 360, fill =(0,0,255))
-    draw.arc((2,2,238,238),0, 360, fill =(0,0,255))
-    draw.arc((3,3,237,237),0, 360, fill =(0,0,255))
+    #if animBackground.active == False:
+    #    a = 0
+    #    b = 360
+    #else:
+    #    draw.arc((1,3,237,239),b,a,fill="RED")
+
+    draw.arc((1,1,239,239),a, b, fill = screen.bakground_color[0])
+    draw.arc((2,2,238,238),a, b, fill = screen.bakground_color[0])
+    draw.arc((3,3,237,237),a, b, fill = screen.bakground_color[0])
+    draw.arc((4,4,236,236),a, b, fill = screen.bakground_color[1])
+    draw.arc((5,5,235,235),a, b, fill = screen.bakground_color[0])
+    draw.arc((6,6,234,234),a, b, fill = screen.bakground_color[0])
+    draw.arc((7,7,233,233),a, b, fill = screen.bakground_color[0])
     return draw
+
+class AnimBackground(threading.Thread):
+    def __init__(self):
+        super(AnimBackground, self).__init__()
+        self.active = False
+
+    def run(self):
+        while True:
+            if self.active == True:
+                screen.a += 1
+                if screen.a == 361:
+                    screen.a = 0
+                screen.b += 1
+                if screen.b == 361:
+                    screen.b = 0
+                screen.refresh
+
+            time.sleep(0.05)
 
 class Screen():
     def __init__(self,disp):
@@ -64,17 +95,20 @@ class Screen():
         self.textH = ""
         self.textM = ""
         self.text = ""
-        self.time_color = "PURPLE"
+        self.time_color = TIME_SLEEP_COLOR
         self.text_color = "YELLOW"
+        self.bakground_color = BACK_SLEEP_COLOR
         self.texti = [-1,-1,-1,-1]
-        self.in_progress = False 
+        self.in_progress = False
+        self.a = 0
+        self.b = 360
 
     def refresh(self):    
         while self.in_progress == True:
             pass
         self.in_progress = True 
         image = Image.new("RGB", (self.disp.width, self.disp.height), "BLACK")
-        draw = dispBackgroung(image)
+        draw = dispBackgroung(image,self.a,self.b)
         draw.text((48, 45), self.textH, fill = self.time_color,font=Font3)
         draw.text((133, 45), self.textM, fill = self.time_color,font=Font3)
         draw.text((50, 125), self.text, fill = self.text_color,font=Font4)
@@ -303,13 +337,16 @@ def stopHyperHDR():
     hyperHDR.desired_status = 0
     os.system("systemctl stop hyperhdr@root")
     hyperHDR.status = 0
+    screen.bakground_color = BACK_SLEEP_COLOR
+    screen.time_color = TIME_SLEEP_COLOR
 
 def startHyperHDR():
     hyperHDR.desired_status = 1
     os.system("systemctl start hyperhdr@root")
     hyperHDRInit()
     subscriptionThread.active = True
-    #hyperHDRSubscribe()
+    screen.bakground_color = BACK_ON_COLOR
+    screen.time_color = TIME_ON_COLOR
 
 def piShutdown():
     clock.stop = True
@@ -454,6 +491,9 @@ if __name__ == "__main__":
     screen = Screen(disp)
     clock = Clock()
     clock.start()
+
+    #animBackground = AnimBackground()
+    #animBackground.start()
 
     screen.text="Initialisaiton"
     screen.refresh()
