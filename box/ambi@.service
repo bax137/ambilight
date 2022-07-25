@@ -1,6 +1,7 @@
 [Unit]
 Description=Ambilight boxfor user %i
 Before=hyperhdr@.service
+After=network.service
 
 [Service]
 ExecStart=/bin/python3 /home/pi/ambi.py
