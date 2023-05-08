@@ -30,6 +30,7 @@ BACK_SLEEP_COLOR = [(61,0,121),(28,0,55)]
 TIME_ON_COLOR = (0,135,166)
 TIME_SLEEP_COLOR = "PURPLE"
 fan_speed=90
+fan_speed_sleep=30
 
 ######################
 #        pins        #
@@ -339,6 +340,7 @@ def stopHyperHDR():
     hyperHDR.status = 0
     screen.bakground_color = BACK_SLEEP_COLOR
     screen.time_color = TIME_SLEEP_COLOR
+    fan_pwm.ChangeDutyCycle(fan_speed_sleep)
 
 def startHyperHDR():
     hyperHDR.desired_status = 1
@@ -347,6 +349,7 @@ def startHyperHDR():
     subscriptionThread.active = True
     screen.bakground_color = BACK_ON_COLOR
     screen.time_color = TIME_ON_COLOR
+    fan_pwm.ChangeDutyCycle(fan_speed)
 
 def piShutdown():
     clock.stop = True
