@@ -265,22 +265,24 @@ def on_message(ws, message):
     #print(message)
     json_message = json.loads(message)
     if 'data' in json_message:
-        for i in range(0,4):
+        for i in range(0,2): #4
             if 'instance' in json_message["data"][i]:
+                instance = json_message["data"][i]["instance"]
                 if json_message["data"][i]["running"] == True:
-                    screen.texti[i] = 1
+                    screen.texti[instance] = 1
                 else:
-                    screen.texti[i] = 0
+                    screen.texti[instance] = 0
         screen.refresh()
 
     if 'info' in json_message:
         if 'instance' in json_message["info"]:
-            for i in range(0,4):
+            for i in range(0,2): #4
                 if 'instance' in json_message["info"]["instance"][i]:
+                    instance = json_message["info"]["instance"][i]["instance"]
                     if json_message["info"]["instance"][i]["running"] == True:
-                        screen.texti[i] = 1
+                        screen.texti[instance] = 1
                     else:
-                        screen.texti[i] = 0
+                        screen.texti[instance] = 0
             screen.refresh()
 
 def hyperHDRInit():
@@ -299,20 +301,20 @@ def hyperHDRInit():
 
         time.sleep(0.5)
     
-    #disable streaming for hue
-    url = "http://"+hue_ip+"/api/"+hue_auth_token+"/groups/6"
-    payload = json.dumps({
-        "stream": {
-        "active": False
-        }
-    })
-    headers = {
-        'Content-Type': 'application/json'
-    }
+#    #disable streaming for hue
+#    url = "http://"+hue_ip+"/api/"+hue_auth_token+"/groups/6"
+#    payload = json.dumps({
+#        "stream": {
+#        "active": False
+#        }
+#    })
+#    headers = {
+#        'Content-Type': 'application/json'
+#    }
 
     while hyperHDR.status == 0:
         pass
-    requests.request("GET", url, headers=headers, data=payload)
+#    requests.request("GET", url, headers=headers, data=payload)
 
     #activate sound effect on leds box
     url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
