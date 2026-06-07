@@ -1,2 +1,3 @@
 pyrightconfig.json
 *deploy.sh
+.DS_Store
