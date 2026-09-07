@@ -1,0 +1,12 @@
+[all]
+dtparam=spi=on
+dtoverlay=spi1-1cs
+gpio=17=op,dl
+dtoverlay=pwm,pin=13,func=4
+
+sudo nano /boot/firmware/config.txt
+
+Si le dossier firmware n'existe pas selon votre version d'OS, tapez : sudo nano /boot/config.txt)Allez tout en bas du fichier, collez le bloc de texte de l'Étape 1 (les 5 lignes sous [all]), enregistrez (Ctrl+O, puis Entrée) et quittez (Ctrl+X).
+
+À vérifier : Tapez la commande groups dans votre terminal. Vérifiez que votre utilisateur fait bien partie du groupe gpio et i2c / spi. Si ce n'est pas le cas, vous pouvez l'ajouter avec :
+sudo usermod -aG gpio,spi,i2c $USER
