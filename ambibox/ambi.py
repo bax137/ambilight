@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# 2026/09/08 : diverses corrections et optimisations par claude
 # -*- coding: UTF-8 -*-
 #import chardet
 #from multiprocessing.connection import wait
@@ -10,9 +11,12 @@ from lib import LCD_1inch28
 from PIL import Image,ImageDraw,ImageFont
 import RPi.GPIO as GPIO
 from datetime import datetime
+from typing import Tuple, Union
+
+Color = Union[str, Tuple[int, int, int]]
 
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ######################
 #       config       #
@@ -31,6 +35,7 @@ TIME_ON_COLOR = (0,135,166)
 TIME_SLEEP_COLOR = "PURPLE"
 fan_speed=90
 fan_speed_sleep=30
+sound_effect=False
 
 ######################
 #        pins        #
@@ -85,7 +90,7 @@ class AnimBackground(threading.Thread):
                 screen.b += 1
                 if screen.b == 361:
                     screen.b = 0
-                screen.refresh
+                screen.refresh()
 
             time.sleep(0.05)
 
@@ -96,18 +101,18 @@ class Screen():
         self.textH = ""
         self.textM = ""
         self.text = ""
-        self.time_color = TIME_SLEEP_COLOR
-        self.text_color = "YELLOW"
+        self.time_color: Color = TIME_SLEEP_COLOR
+        self.text_color: Color = "YELLOW"
         self.bakground_color = BACK_SLEEP_COLOR
         self.texti = [-1,-1,-1,-1]
         self.in_progress = False
         self.a = 0
         self.b = 360
 
-    def refresh(self):    
+    def refresh(self):
         while self.in_progress == True:
-            pass
-        self.in_progress = True 
+            time.sleep(0.01)
+        self.in_progress = True
         image = Image.new("RGB", (self.disp.width, self.disp.height), "BLACK")
         draw = dispBackgroung(image,self.a,self.b)
         draw.text((48, 45), self.textH, fill = self.time_color,font=Font3)
@@ -234,7 +239,7 @@ class HyperHDR(threading.Thread):
                         screen.texti = [-1,-1,-1,-1]
                         text_color="ORANGE"
                         text="HyperHDR..."
-                except:
+                except (requests.RequestException, ValueError, KeyError):
                     self.status = 0
                     screen.texti = [-1,-1,-1,-1]
                 
@@ -312,23 +317,23 @@ def hyperHDRInit():
 #        'Content-Type': 'application/json'
 #    }
 
-    while hyperHDR.status == 0:
-        pass
-#    requests.request("GET", url, headers=headers, data=payload)
+    if sound_effect == True:
+        while hyperHDR.status == 0:
+            time.sleep(0.05)
+    #    requests.request("GET", url, headers=headers, data=payload)
 
-    #activate sound effect on leds box
-    url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
-    url += "?request=%7B%22command%22:%22instance%22,%22subcommand%22:%22switchTo%22,%22instance%22:3%7D"
-    url += "&request=%7B%22command%22:%22effect%22,%22effect%22:%7B%22name%22:\"Music: stereo for LED strip (MULTI COLOR)%22%7D,%22priority%22:50,%22origin%22:%22AmbiBox%22%7D"
-    url += "&request=%7B%22command%22:%22componentstate%22,%22componentstate%22:%7B%22component%22:%22V4L%22,%22state%22:false%7D%7D"
-
-    payload = ""
-    headers = {}
-    requests.request("GET", url, headers=headers, data=payload)
+        #activate sound effect on leds box
+        url = "http://"+hyperhdr_ip+":"+str(hyperhdr_port)+"/json-rpc/"
+        url += "?request=%7B%22command%22:%22instance%22,%22subcommand%22:%22switchTo%22,%22instance%22:3%7D"
+        url += "&request=%7B%22command%22:%22effect%22,%22effect%22:%7B%22name%22:\"Music: stereo for LED strip (MULTI COLOR)%22%7D,%22priority%22:50,%22origin%22:%22AmbiBox%22%7D"
+        url += "&request=%7B%22command%22:%22componentstate%22,%22componentstate%22:%7B%22component%22:%22V4L%22,%22state%22:false%7D%7D"
+        payload = ""
+        headers = {}
+        requests.request("GET", url, headers=headers, data=payload)
 
 def hyperHDRSubscribe():
     while hyperHDR.status == 0:
-            pass
+        time.sleep(0.05)
     ws.send("""{
         "command":"serverinfo",
         "subscribe":["instance-update"],
@@ -370,7 +375,7 @@ def piShutdown():
 
 class WebServer(BaseHTTPRequestHandler):
     def do_POST(self):
-        content_len = int(self.headers.get('Content-Length'))
+        content_len = int(self.headers.get('Content-Length', 0))
         post_body = self.rfile.read(content_len)
         response = 0
         message = ''
@@ -380,7 +385,7 @@ class WebServer(BaseHTTPRequestHandler):
                 if post_body_json["command"] == "stop":
                     stopHyperHDR()
                     response = 200
-                    message = message = '{"result":"HyperHDR Stopped"}'
+                    message = '{"result":"HyperHDR Stopped"}'
                 elif post_body_json["command"] == "start":
                     startHyperHDR()
                     response = 200
@@ -441,7 +446,8 @@ class WebServerThread(threading.Thread):
     
     def run(self):
         #asyncio.run(main())
-        webServer = HTTPServer((webserver_ip, webserver_port), WebServer)
+        #webServer = ThreadingHTTPServer(("webserver_ip", webserver_port), WebServer)
+        webServer = ThreadingHTTPServer(("", webserver_port), WebServer)
         webServer.serve_forever()
 
 class SubscriptionThread(threading.Thread):

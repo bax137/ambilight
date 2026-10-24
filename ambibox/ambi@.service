@@ -1,10 +1,10 @@
 [Unit]
-Description=Ambilight boxfor user %i
+Description=Ambilight box for user %i
 Before=hyperhdr@.service
 After=network.service
 
 [Service]
-ExecStart=/bin/python3 /home/pi/ambi.py
+ExecStart=/usr/bin/python3 /home/pi/ambi.py
 User=%i
 TimeoutStopSec=5
 KillMode=mixed
